@@ -1,14 +1,12 @@
 @tool
 extends Control
 
-const NodeSearchPopup = preload("res://addons/nodeify/node_search.gd")
-const CodeGenerator = preload("res://addons/nodeify/codegen.gd")
-const GraphSaver = preload("res://addons/nodeify/graph_saver.gd")
+var NodeSearchPopup = preload("res://addons/nodeify/node_search.gd")
+var CodeGenerator = preload("res://addons/nodeify/codegen.gd")
+var GraphSaver = preload("res://addons/nodeify/graph_saver.gd")
 
 var data: NodeifyGraphData
 var graph_edit: GraphEdit
-var search_popup: Window
-var _dragging_new_node: String = ""
 var _selected_graph_node: GraphNode = null
 var _inspector_container: VBoxContainer
 
@@ -23,7 +21,6 @@ func _build_ui() -> void:
 	root.add_theme_constant_override("separation", 0)
 	add_child(root)
 
-	# Toolbar
 	var toolbar := HBoxContainer.new()
 	toolbar.add_theme_constant_override("separation", 4)
 	var style_bar := StyleBoxFlat.new()
@@ -41,8 +38,7 @@ func _build_ui() -> void:
 	btn_save.pressed.connect(_on_save)
 	toolbar.add_child(btn_save)
 
-	var sep := VSeparator.new()
-	toolbar.add_child(sep)
+	toolbar.add_child(VSeparator.new())
 
 	var btn_add := Button.new()
 	btn_add.text = "+ Add Node"
@@ -61,13 +57,11 @@ func _build_ui() -> void:
 	btn_clear.pressed.connect(_on_clear)
 	toolbar.add_child(btn_clear)
 
-	# Splitter: graph + inspector
 	var hsplit := HSplitContainer.new()
 	hsplit.split_offset = -220
 	hsplit.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(hsplit)
 
-	# GraphEdit
 	graph_edit = GraphEdit.new()
 	graph_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	graph_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -80,7 +74,6 @@ func _build_ui() -> void:
 	graph_edit.popup_request.connect(_on_popup_request)
 	hsplit.add_child(graph_edit)
 
-	# Inspector panel
 	var inspector_panel := PanelContainer.new()
 	inspector_panel.custom_minimum_size.x = 220
 	var insp_style := StyleBoxFlat.new()
@@ -99,25 +92,21 @@ func _build_ui() -> void:
 
 	_show_inspector_placeholder()
 
-	# Style GraphEdit
-	_style_graph_edit()
-
-func _style_graph_edit() -> void:
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.12, 0.12, 0.14)
 	graph_edit.add_theme_stylebox_override("panel", bg)
 
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
-	data.add_connection(from_node.to_int(), from_port, to_node.to_int(), to_port)
+	data.add_connection(int(from_node), from_port, int(to_node), to_port)
 	_sync_graph()
 
 func _on_disconnection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
-	data.remove_connection(from_node.to_int(), from_port, to_node.to_int(), to_port)
+	data.remove_connection(int(from_node), from_port, int(to_node), to_port)
 	_sync_graph()
 
 func _on_delete_nodes(nodes_to_delete: Array[StringName]) -> void:
 	for n in nodes_to_delete:
-		data.remove_node(n.to_int())
+		data.remove_node(int(n))
 	_sync_graph()
 
 func _on_popup_request(at_position: Vector2) -> void:
@@ -128,27 +117,29 @@ func _on_add_node_pressed() -> void:
 	_show_search(center)
 
 func _show_search(pos: Vector2) -> void:
-	var popup := NodeSearchPopup.create_popup()
-	popup.node_selected.connect(func(type: String):
-		data.create_node(type, pos / graph_edit.zoom)
-		_sync_graph()
-		popup.queue_free()
-	)
+	var popup = NodeSearchPopup.create_popup()
+	popup.node_selected.connect(_on_search_node_selected.bind(pos))
 	get_window().add_child(popup)
 	popup.popup_centered(Vector2i(360, 500))
 
+func _on_search_node_selected(type: String, pos: Vector2) -> void:
+	data.create_node(type, pos / graph_edit.zoom)
+	_sync_graph()
+
 func _on_open() -> void:
-	GraphSaver.open_file_dialog(self, func(path: String):
-		var loaded = GraphSaver.load_graph(path)
-		if loaded:
-			data.deserialize(loaded)
-			_sync_graph()
-	)
+	GraphSaver.open_file_dialog(self, _on_open_file)
+
+func _on_open_file(path: String) -> void:
+	var loaded = GraphSaver.load_graph(path)
+	if loaded:
+		data.deserialize(loaded)
+		_sync_graph()
 
 func _on_save() -> void:
-	GraphSaver.save_file_dialog(self, func(path: String):
-		GraphSaver.save_graph(path, data)
-	)
+	GraphSaver.save_file_dialog(self, _on_save_file)
+
+func _on_save_file(path: String) -> void:
+	GraphSaver.save_graph(path, data)
 
 func _on_generate() -> void:
 	var code = CodeGenerator.generate(data, _find_owner_node())
@@ -156,17 +147,12 @@ func _on_generate() -> void:
 		push_warning("Nodeify: Nothing to generate")
 		return
 	var path = "res://generated_nodeify.gd"
-	if ResourceLoader.exists(path):
-		var old = load(path)
-		if old:
-			old = null
 	DirAccess.remove_absolute(path)
 	var f = FileAccess.open(path, FileAccess.WRITE)
 	if f:
 		f.store_string(code)
 		f.close()
 		print("Nodeify: Generated script at ", path)
-		# Optionally attach to the owner node
 		var owner = _find_owner_node()
 		if owner:
 			owner.set_script(load(path))
@@ -177,28 +163,19 @@ func _on_clear() -> void:
 	_sync_graph()
 
 func _find_owner_node() -> Node:
-	var scene_root = EditorInterface.get_edited_scene_root()
-	return scene_root
+	return EditorInterface.get_edited_scene_root()
 
 func _sync_graph() -> void:
 	for child in graph_edit.get_children():
 		if child is GraphNode:
 			child.queue_free()
 
-	await get_tree().process_frame
-
-	var node_map: Dictionary = {}
 	for nd in data.nodes:
 		var gn = _create_graph_node(nd)
 		graph_edit.add_child(gn)
-		node_map[nd["id"]] = gn
 
 	for conn in data.connections:
-		var from_name = str(conn["from_node"])
-		var to_name = str(conn["to_node"])
-		graph_edit.connect_node(from_name, conn["from_port"], to_name, conn["to_port"])
-
-	_update_all_port_colors()
+		graph_edit.connect_node(str(conn["from_node"]), conn["from_port"], str(conn["to_node"]), conn["to_port"])
 
 func _create_graph_node(nd: Dictionary) -> GraphNode:
 	var gn := GraphNode.new()
@@ -218,38 +195,37 @@ func _create_graph_node(nd: Dictionary) -> GraphNode:
 	style.set_corner_radius_all(6)
 	style.set_content_margin_all(8)
 	gn.add_theme_stylebox_override("frame", style)
-	gn.add_theme_stylebox_override("selected_frame", style.duplicate())
-	gn.get_theme_stylebox("selected_frame").set_border_width_all(3)
+
+	var sel_style := style.duplicate()
+	sel_style.set_border_width_all(3)
+	gn.add_theme_stylebox_override("selected_frame", sel_style)
 
 	gn.draggable = true
 	gn.resizable = false
 
-	gn.gui_input.connect(func(event: InputEvent):
-		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-			_select_node(nd["id"])
-	)
+	var node_id = nd["id"]
+	gn.gui_input.connect(_on_graph_node_input.bind(node_id))
 
-	# Exec input port
 	if def.has("inputs"):
 		for i in def["inputs"]:
 			var port_type = _port_type_to_int(i["type"])
-			gn.set_slot(i.get("idx", 0), false, port_type, color, true, port_type, color)
+			var slot_idx = gn.get_child_count()
+			gn.set_slot(slot_idx, false, port_type, color, true, port_type, color)
 			var label := Label.new()
 			label.text = i.get("name", "")
 			label.add_theme_font_size_override("font_size", 10)
 			gn.add_child(label)
 
-	# Output ports
 	if def.has("outputs"):
 		for i in def["outputs"]:
 			var port_type = _port_type_to_int(i["type"])
-			gn.set_slot(gn.get_child_count(), true, port_type, color, false, port_type, color)
+			var slot_idx = gn.get_child_count()
+			gn.set_slot(slot_idx, true, port_type, color, false, port_type, color)
 			var label := Label.new()
 			label.text = i.get("name", "")
 			label.add_theme_font_size_override("font_size", 10)
 			gn.add_child(label)
 
-	# Properties
 	var props = nd.get("props", {})
 	for key in props:
 		var hbox := HBoxContainer.new()
@@ -267,26 +243,23 @@ func _create_graph_node(nd: Dictionary) -> GraphNode:
 			var current_idx = options.find(props[key])
 			if current_idx >= 0:
 				opt.selected = current_idx
-			opt.item_selected.connect(func(idx: int):
-				nd["props"][key] = options[idx]
-			)
+			var _key = key
+			opt.item_selected.connect(_on_option_selected.bind(nd, _key, options))
 			opt.add_theme_font_size_override("font_size", 10)
 			hbox.add_child(opt)
 		elif props[key] is float or props[key] is int:
 			var spin := SpinBox.new()
 			spin.value = props[key]
 			spin.step = 0.01 if props[key] is float else 1
-			spin.value_changed.connect(func(val: float):
-				nd["props"][key] = val
-			)
+			var _key = key
+			spin.value_changed.connect(_on_spin_changed.bind(nd, _key))
 			spin.add_theme_font_size_override("font_size", 10)
 			hbox.add_child(spin)
 		else:
 			var inp := LineEdit.new()
 			inp.text = str(props[key])
-			inp.text_changed.connect(func(t: String):
-				nd["props"][key] = t
-			)
+			var _key = key
+			inp.text_changed.connect(_on_text_changed.bind(nd, _key))
 			inp.add_theme_font_size_override("font_size", 10)
 			hbox.add_child(inp)
 
@@ -294,13 +267,23 @@ func _create_graph_node(nd: Dictionary) -> GraphNode:
 
 	return gn
 
+func _on_graph_node_input(event: InputEvent, node_id: int) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_select_node(node_id)
+
+func _on_option_selected(idx: int, nd: Dictionary, key: String, options: Array) -> void:
+	nd["props"][key] = options[idx]
+
+func _on_spin_changed(val: float, nd: Dictionary, key: String) -> void:
+	nd["props"][key] = val
+
+func _on_text_changed(t: String, nd: Dictionary, key: String) -> void:
+	nd["props"][key] = t
+
 func _port_type_to_int(type: String) -> int:
 	if type == "exec":
 		return 4
 	return 0
-
-func _update_all_port_colors() -> void:
-	pass
 
 func _select_node(node_id: int) -> void:
 	var nd = data.get_node(node_id)
@@ -328,10 +311,8 @@ func _show_node_inspector(nd: Dictionary) -> void:
 	type_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 	_inspector_container.add_child(type_label)
 
-	var sep := HSeparator.new()
-	_inspector_container.add_child(sep)
+	_inspector_container.add_child(HSeparator.new())
 
-	# Editable label
 	var name_row := HBoxContainer.new()
 	var name_lbl := Label.new()
 	name_lbl.text = "Label"
@@ -340,14 +321,10 @@ func _show_node_inspector(nd: Dictionary) -> void:
 	var name_inp := LineEdit.new()
 	name_inp.text = nd.get("label", "")
 	name_inp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_inp.text_changed.connect(func(t: String):
-		nd["label"] = t
-		_sync_graph()
-	)
+	name_inp.text_changed.connect(_on_inspector_label_changed.bind(nd))
 	name_row.add_child(name_inp)
 	_inspector_container.add_child(name_row)
 
-	# Props
 	var props = nd.get("props", {})
 	for key in props:
 		var row := HBoxContainer.new()
@@ -365,9 +342,7 @@ func _show_node_inspector(nd: Dictionary) -> void:
 			var idx = options.find(props[key])
 			if idx >= 0:
 				opt.selected = idx
-			opt.item_selected.connect(func(i: int):
-				nd["props"][key] = options[i]
-			)
+			opt.item_selected.connect(_on_option_selected.bind(nd, key, options))
 			opt.add_theme_font_size_override("font_size", 10)
 			row.add_child(opt)
 		elif props[key] is float or props[key] is int:
@@ -375,17 +350,13 @@ func _show_node_inspector(nd: Dictionary) -> void:
 			spin.value = props[key]
 			spin.step = 0.01 if props[key] is float else 1
 			spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			spin.value_changed.connect(func(val: float):
-				nd["props"][key] = val
-			)
+			spin.value_changed.connect(_on_spin_changed.bind(nd, key))
 			row.add_child(spin)
 		else:
 			var inp := LineEdit.new()
 			inp.text = str(props[key])
 			inp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			inp.text_changed.connect(func(t: String):
-				nd["props"][key] = t
-			)
+			inp.text_changed.connect(_on_text_changed.bind(nd, key))
 			row.add_child(inp)
 
 		_inspector_container.add_child(row)
@@ -393,12 +364,17 @@ func _show_node_inspector(nd: Dictionary) -> void:
 	var del_btn := Button.new()
 	del_btn.text = "Delete Node"
 	del_btn.add_theme_color_override("font_color", Color.RED)
-	del_btn.pressed.connect(func():
-		data.remove_node(nd["id"])
-		_sync_graph()
-		_show_inspector_placeholder()
-	)
+	del_btn.pressed.connect(_on_delete_pressed.bind(nd))
 	_inspector_container.add_child(del_btn)
+
+func _on_inspector_label_changed(t: String, nd: Dictionary) -> void:
+	nd["label"] = t
+	_sync_graph()
+
+func _on_delete_pressed(nd: Dictionary) -> void:
+	data.remove_node(nd["id"])
+	_sync_graph()
+	_show_inspector_placeholder()
 
 func _show_inspector_placeholder() -> void:
 	for child in _inspector_container.get_children():

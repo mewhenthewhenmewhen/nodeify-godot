@@ -5,14 +5,12 @@ signal node_selected(type: String)
 
 var search_input: LineEdit
 var list_container: ItemList
-var all_items: Array = []
 
 static func create_popup() -> Window:
 	var popup = NodeifyNodeSearch.new()
 	popup.title = "Add Node"
 	popup.size = Vector2i(360, 500)
 	popup.window_mode = Window.WINDOW_MODE_POPUP
-	popup.transparent = true
 	popup.popup_exclusive = true
 	return popup
 
@@ -32,7 +30,6 @@ func _ready() -> void:
 
 	search_input = LineEdit.new()
 	search_input.placeholder_text = "Search nodes..."
-	search_input.placeholder_alpha = 0.5
 	search_input.text_changed.connect(_on_search)
 	vbox.add_child(search_input)
 
@@ -47,7 +44,6 @@ func _ready() -> void:
 
 func _populate_list(filter: String) -> void:
 	list_container.clear()
-	all_items.clear()
 	var f = filter.to_lower()
 
 	for type in NodeifyRegistry.NODE_DEFS:
@@ -57,11 +53,9 @@ func _populate_list(filter: String) -> void:
 		if f and not label.to_lower().contains(f) and not type.to_lower().contains(f):
 			continue
 		var color = NodeifyRegistry.get_category_color(cat)
-		var cat_label = NodeifyRegistry.CATEGORIES.get(cat, {}).get("label", cat)
 		var idx = list_container.add_item(label)
 		list_container.set_item_custom_fg_color(idx, color)
 		list_container.set_item_metadata(idx, type)
-		all_items.append({"type": type, "label": label, "cat": cat_label})
 
 func _on_search(text: String) -> void:
 	_populate_list(text)
