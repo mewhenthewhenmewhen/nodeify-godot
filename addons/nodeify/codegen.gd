@@ -2,8 +2,8 @@ class_name NodeifyCodeGenerator
 extends RefCounted
 
 static func generate(data: NodeifyGraphData, owner: Node = null) -> String:
-	events: Array[Dictionary] = []
-	others: Array[Dictionary] = []
+	var events: Array[Dictionary] = []
+	var others: Array[Dictionary] = []
 
 	for nd in data.nodes:
 		var def = NodeifyRegistry.NODE_DEFS.get(nd["type"], {})
