@@ -2,8 +2,8 @@ class_name NodeifyCodeGenerator
 extends RefCounted
 
 static func generate(data: NodeifyGraphData, owner: Node = null) -> String:
-	var events: Array[Dictionary] = []
-	var others: Array[Dictionary] = []
+	events: Array[Dictionary] = []
+	others: Array[Dictionary] = []
 
 	for nd in data.nodes:
 		var def = NodeifyRegistry.NODE_DEFS.get(nd["type"], {})
@@ -23,7 +23,8 @@ static func generate(data: NodeifyGraphData, owner: Node = null) -> String:
 
 	var vars_used: Dictionary = {}
 	for nd in data.nodes:
-		if nd["type"] == "set_var" or nd["type"] == "get_var":
+		var nt = nd["type"]
+		if nt == "set_var" or nt == "get_var" or nt == "increment_var":
 			vars_used[nd["props"].get("name", "my_var")] = true
 	for v in vars_used:
 		lines.append("var %s" % v)
@@ -49,11 +50,41 @@ static func generate(data: NodeifyGraphData, owner: Node = null) -> String:
 				lines.append("func _input(event):")
 				lines.append(_generate_body(ev, data, others, "    "))
 				lines.append("")
+			"on_unhandled_input":
+				lines.append("func _unhandled_input(event):")
+				lines.append(_generate_body(ev, data, others, "    "))
+				lines.append("")
 			"on_key_pressed":
 				var key = ev["props"].get("key", "KEY_SPACE")
 				lines.append("func _input(event):")
 				lines.append("    if event is InputEventKey and event.pressed and event.keycode == %s:" % key)
 				lines.append(_generate_body(ev, data, others, "        "))
+				lines.append("")
+			"on_key_released":
+				var key = ev["props"].get("key", "KEY_SPACE")
+				lines.append("func _input(event):")
+				lines.append("    if event is InputEventKey and not event.pressed and event.keycode == %s:" % key)
+				lines.append(_generate_body(ev, data, others, "        "))
+				lines.append("")
+			"on_body_entered", "on_body_entered_2d":
+				lines.append("func _on_body_entered(body):")
+				lines.append(_generate_body(ev, data, others, "    "))
+				lines.append("")
+			"on_body_exited", "on_body_exited_2d":
+				lines.append("func _on_body_exited(body):")
+				lines.append(_generate_body(ev, data, others, "    "))
+				lines.append("")
+			"on_area_entered", "on_area_entered_2d":
+				lines.append("func _on_area_entered(area):")
+				lines.append(_generate_body(ev, data, others, "    "))
+				lines.append("")
+			"on_timer_timeout":
+				lines.append("func _on_timer_timeout():")
+				lines.append(_generate_body(ev, data, others, "    "))
+				lines.append("")
+			"on_animation_finished":
+				lines.append("func _on_animation_finished():")
+				lines.append(_generate_body(ev, data, others, "    "))
 				lines.append("")
 			_:
 				lines.append("func _on_%s():" % ev_type)
@@ -63,12 +94,12 @@ static func generate(data: NodeifyGraphData, owner: Node = null) -> String:
 	return lines.join("\n")
 
 static func _generate_body(event_node: Dictionary, data: NodeifyGraphData, _others: Array, indent: String) -> String:
-	var lines: PackedStringArray = []
+	var body_lines: PackedStringArray = []
 	var visited: Dictionary = {}
-	_trace_exec(event_node["id"], 0, data, lines, indent, visited)
-	if lines.is_empty():
-		lines.append(indent + "pass")
-	return lines.join("\n")
+	_trace_exec(event_node["id"], 0, data, body_lines, indent, visited)
+	if body_lines.is_empty():
+		body_lines.append(indent + "pass")
+	return body_lines.join("\n")
 
 static func _trace_exec(node_id: int, port: int, data: NodeifyGraphData, lines: PackedStringArray, indent: String, visited: Dictionary) -> void:
 	var key = "%d:%d" % [node_id, port]
@@ -89,62 +120,442 @@ static func _generate_node_code(nd: Dictionary, data: NodeifyGraphData, lines: P
 	var line = ""
 
 	match t:
-		"set_property":
-			line = "%s%s.%s = %s" % [indent, _resolve_input(nd, 1, data), props.get("property", "position"), _resolve_input(nd, 2, data)]
+		# Node Operations
+		"add_child":
+			line = "%s%s.add_child(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"remove_child":
+			line = "%s%s.remove_child(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"queue_free":
+			line = "%s%s.queue_free()" % [indent, _resolve_input(nd, 0, data)]
+		"instantiate_scene":
+			line = '%svar _scn_%d = load("%s").instantiate()' % [indent, nd["id"], props.get("path", "")]
+		"get_node", "get_node_or_null":
+			line = '%svar _nd_%d = %s.get_node("%s")' % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("path", "")]
+		"get_parent":
+			line = "%svar _par_%d = %s.get_parent()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"get_children":
+			line = "%svar _kids_%d = %s.get_children()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"get_child":
+			line = "%svar _kid_%d = %s.get_child(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("index", "0")]
+		"get_index":
+			line = "%svar _idx_%d = %s.get_index()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_inside_tree":
+			line = "%svar _intree_%d = %s.is_inside_tree()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_node_in_group":
+			line = '%svar _grpchk_%d = %s.is_in_group("%s")' % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("group", "")]
+		"add_to_group":
+			line = '%s%s.add_to_group("%s")' % [indent, _resolve_input(nd, 0, data), props.get("group", "")]
+		"remove_from_group":
+			line = '%s%s.remove_from_group("%s")' % [indent, _resolve_input(nd, 0, data), props.get("group", "")]
+		"get_nodes_in_group":
+			line = '%svar _grp_%d = get_tree().get_nodes_in_group("%s")' % [indent, nd["id"], props.get("group", "")]
+		"get_tree":
+			line = "%svar _tree_%d = %s.get_tree()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"get_root":
+			line = "%svar _root_%d = %s.get_tree().root" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"reparent":
+			line = "%s%s.reparent(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"set_name":
+			line = "%s%s.name = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_name":
+			line = "%svar _nm_%d = %s.name" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_instance_valid":
+			line = "%svar _valid_%d = is_instance_valid(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_class":
+			line = '%svar _iscls_%d = %s.is_class("%s")' % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("class_name", "")]
+		"get_class":
+			line = "%svar _cls_%d = %s.get_class()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
+		# 3D Transform
 		"set_position_3d":
-			line = "%s%s.global_position = %s" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
+			line = "%s%s.global_position = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_position_3d":
+			line = "%svar _pos_%d = %s.global_position" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"set_local_position_3d":
+			line = "%s%s.position = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_local_position_3d":
+			line = "%svar _lpos_%d = %s.position" % [indent, nd["id"], _resolve_input(nd, 0, data)]
 		"set_rotation_3d":
-			line = "%s%s.rotation = %s" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
+			line = "%s%s.global_rotation = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_rotation_3d":
+			line = "%svar _rot_%d = %s.global_rotation" % [indent, nd["id"], _resolve_input(nd, 0, data)]
 		"set_scale_3d":
-			line = "%s%s.scale = %s" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
-		"set_position_2d":
-			line = "%s%s.global_position = %s" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
-		"set_rotation_2d":
-			line = "%s%s.rotation = %s" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
-		"set_scale_2d":
-			line = "%s%s.scale = %s" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
-		"translate":
-			line = "%s%s.translate(%s)" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
-		"apply_impulse_3d":
-			line = "%s%s.apply_central_impulse(%s)" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
-		"apply_impulse_2d":
-			line = "%s%s.apply_central_impulse(%s)" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
-		"move_toward_3d":
-			line = "%svar _mt = %s.move_toward(%s, %s)" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data), _resolve_input(nd, 3, data)]
+			line = "%s%s.scale = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_scale_3d":
+			line = "%svar _scl_%d = %s.scale" % [indent, nd["id"], _resolve_input(nd, 0, data)]
 		"look_at_3d":
-			line = "%s%s.look_at(%s)" % [indent, _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
-		"set_var":
-			line = "%s%s = %s" % [indent, props.get("name", "my_var"), _resolve_input(nd, 1, data)]
-		"increment_var":
-			line = "%s%s += %s" % [indent, props.get("name", "score"), props.get("amount", 1)]
-		"print":
-			line = "%sprint(%s)" % [indent, _resolve_input(nd, 1, data)]
-		"emit_signal":
-			line = "%semit_signal(&\"%s\")" % [indent, props.get("signal_name", "my_signal")]
-		"call_method":
-			line = "%s%s.%s()" % [indent, _resolve_input(nd, 1, data), props.get("method", "do_thing")]
-		"delay":
-			line = "%sawait get_tree().create_timer(%s).timeout" % [indent, props.get("seconds", 1.0)]
-		"for_loop":
-			line = "%sfor i in %s:" % [indent, props.get("count", 10)]
-			lines.append(line)
-			_trace_exec(nd["id"], 0, data, lines, indent + "    ", visited)
-			_trace_exec(nd["id"], 1, data, lines, indent, visited)
-			return
-		"sequence":
-			_trace_exec(nd["id"], 0, data, lines, indent, visited)
-			_trace_exec(nd["id"], 1, data, lines, indent, visited)
-			_trace_exec(nd["id"], 2, data, lines, indent, visited)
-			return
+			line = "%s%s.look_at(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"rotate_3d":
+			line = "%s%s.rotate(%s, %s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
+		"translate_3d":
+			line = "%s%s.translate(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"global_translate_3d":
+			line = "%s%s.global_translate(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_forward_3d":
+			line = "%svar _fwd_%d = -%s.global_transform.basis.z" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"get_global_transform_3d":
+			line = "%svar _xf_%d = %s.global_transform" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"show_3d":
+			line = "%s%s.show()" % [indent, _resolve_input(nd, 0, data)]
+		"hide_3d":
+			line = "%s%s.hide()" % [indent, _resolve_input(nd, 0, data)]
+		"is_visible_3d":
+			line = "%svar _vis_%d = %s.visible" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
+		# 2D Transform
+		"set_position_2d":
+			line = "%s%s.global_position = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_position_2d":
+			line = "%svar _pos2_%d = %s.global_position" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"set_rotation_2d":
+			line = "%s%s.global_rotation = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_rotation_2d":
+			line = "%svar _rot2_%d = %s.global_rotation" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"set_scale_2d":
+			line = "%s%s.scale = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_scale_2d":
+			line = "%svar _scl2_%d = %s.scale" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"look_at_2d":
+			line = "%s%s.look_at(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"rotate_2d":
+			line = "%s%s.rotate(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"translate_2d":
+			line = "%s%s.translate(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_angle_2d":
+			line = "%svar _ang_%d = %s.get_angle_to(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_distance_to_2d":
+			line = "%svar _dist_%d = %s.global_position.distance_to(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+
+		# Physics
+		"move_and_slide":
+			line = "%s%s.move_and_slide()" % [indent, _resolve_input(nd, 0, data)]
+		"apply_impulse_3d", "apply_impulse_2d":
+			line = "%s%s.apply_central_impulse(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"apply_force_3d", "apply_force_2d":
+			line = "%s%s.apply_central_force(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"apply_torque_3d":
+			line = "%s%s.apply_torque(%s)" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"set_velocity_3d":
+			line = "%s%s.velocity = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_velocity_3d":
+			line = "%svar _vel_%d = %s.velocity" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_on_floor_3d":
+			line = "%svar _floor_%d = %s.is_on_floor()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_on_wall_3d":
+			line = "%svar _wall_%d = %s.is_on_wall()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_on_ceiling_3d":
+			line = "%svar _ceil_%d = %s.is_on_ceiling()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
+		# Input
+		"is_action_pressed":
+			line = '%svar _iap_%d = Input.is_action_pressed("%s")' % [indent, nd["id"], props.get("action", "ui_accept")]
+		"is_action_just_pressed":
+			line = '%svar _iajp_%d = Input.is_action_just_pressed("%s")' % [indent, nd["id"], props.get("action", "ui_accept")]
+		"is_action_just_released":
+			line = '%svar _iajr_%d = Input.is_action_just_released("%s")' % [indent, nd["id"], props.get("action", "ui_accept")]
+		"is_key_pressed":
+			line = "%svar _ikp_%d = Input.is_key_pressed(%s)" % [indent, nd["id"], props.get("key", "KEY_SPACE")]
+		"get_input_axis":
+			line = '%svar _gia_%d = Input.get_axis("%s", "%s")' % [indent, nd["id"], props.get("negative", ""), props.get("positive", "")]
+		"get_input_vector":
+			line = '%svar _giv_%d = Input.get_vector("%s", "%s", "%s", "%s")' % [indent, nd["id"], props.get("neg_x", ""), props.get("pos_x", ""), props.get("neg_y", ""), props.get("pos_y", "")]
+		"get_mouse_position":
+			line = "%svar _mpos_%d = get_viewport().get_mouse_position()" % [indent, nd["id"]]
+		"is_mouse_button_pressed":
+			line = "%svar _imbp_%d = Input.is_mouse_button_pressed(%s)" % [indent, nd["id"], props.get("button", "MOUSE_BUTTON_LEFT")]
+
+		# Logic
 		"if_else":
-			line = "%sif %s:" % [indent, _resolve_input(nd, 1, data)]
+			line = "%sif %s:" % [indent, _resolve_input(nd, 0, data)]
 			lines.append(line)
 			_trace_exec(nd["id"], 0, data, lines, indent + "    ", visited)
 			lines.append(indent + "else:")
 			_trace_exec(nd["id"], 1, data, lines, indent + "    ", visited)
 			return
+		"compare":
+			line = "%svar _cmp_%d = (%s %s %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("operator", "=="), _resolve_input(nd, 1, data)]
+		"and_gate":
+			line = "%svar _and_%d = (%s and %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"or_gate":
+			line = "%svar _or_%d = (%s or %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"not_gate":
+			line = "%svar _not_%d = not %s" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_equal":
+			line = "%svar _eq_%d = %s == %s" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"is_null":
+			line = "%svar _null_%d = %s == null" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"type_cast":
+			line = "%svar _cast_%d = %s as %s" % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("type", "Node")]
+
+		# Math
+		"number":
+			line = "%svar _num_%d = %s" % [indent, nd["id"], props.get("value", "0.0")]
+		"vector2":
+			line = "%svar _v2_%d = Vector2(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"vector3":
+			line = "%svar _v3_%d = Vector3(%s, %s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
+		"math_op":
+			line = "%svar _mop_%d = (%s %s %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("operator", "+"), _resolve_input(nd, 1, data)]
+		"math_func":
+			line = "%svar _mfn_%d = %s(%s)" % [indent, nd["id"], props.get("function", "abs"), _resolve_input(nd, 0, data)]
+		"lerp":
+			line = "%svar _lerp_%d = lerp(%s, %s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
+		"clamp":
+			line = "%svar _clamp_%d = clamp(%s, %s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
+		"min_val":
+			line = "%svar _min_%d = min(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"max_val":
+			line = "%svar _max_%d = max(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"random_range":
+			line = "%svar _rand_%d = randf_range(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"random_int":
+			line = "%svar _randi_%d = randi_range(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"deg_to_rad":
+			line = "%svar _d2r_%d = deg_to_rad(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"rad_to_deg":
+			line = "%svar _r2d_%d = rad_to_deg(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"abs_val":
+			line = "%svar _abs_%d = abs(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"ceil_val":
+			line = "%svar _ceil_%d = ceil(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"floor_val":
+			line = "%svar _floor_%d = floor(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"sign_val":
+			line = "%svar _sign_%d = sign(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"sqrt_val":
+			line = "%svar _sqrt_%d = sqrt(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"pow_val":
+			line = "%svar _pow_%d = pow(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"fmod_val":
+			line = "%svar _fmod_%d = fmod(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"snapped_val":
+			line = "%svar _snap_%d = snapped(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+
+		# String
+		"string_value":
+			line = '%svar _str_%d = "%s"' % [indent, nd["id"], props.get("value", "")]
+		"string_length":
+			line = "%svar _slen_%d = %s.length()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"string_concat":
+			line = "%svar _scon_%d = str(%s) + str(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_substr":
+			line = "%svar _ssub_%d = %s.substr(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("start", "0"), props.get("length", "1")]
+		"string_replace":
+			line = '%svar _srep_%d = %s.replace("%s", "%s")' % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("from", ""), props.get("to", "")]
+		"string_contains":
+			line = "%svar _shas_%d = %s.contains(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_to_upper":
+			line = "%svar _sup_%d = %s.to_upper()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"string_to_lower":
+			line = "%svar _slow_%d = %s.to_lower()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"string_to_int":
+			line = "%svar _sint_%d = %s.to_int()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"string_to_float":
+			line = "%svar _sflt_%d = %s.to_float()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"string_split":
+			line = '%svar _sspl_%d = %s.split("%s")' % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("delimiter", ",")]
+		"string_find":
+			line = "%svar _sfin_%d = %s.find(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_begins_with":
+			line = "%svar _sbw_%d = %s.begins_with(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_ends_with":
+			line = "%svar _sew_%d = %s.ends_with(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_join":
+			line = '%svar _sjo_%d = PoolStringArray(%s).join("%s")' % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("delimiter", ", ")]
+		"string_pad_zeros":
+			line = "%svar _spz_%d = %s.pad_zeros(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("width", "2")]
+		"string_hex_to_int":
+			line = "%svar _sh2i_%d = %s.hex_to_int()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"string_num_int64":
+			line = "%svar _sni_%d = str(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"string_num_scientific":
+			line = "%svar _snsc_%d = %s.num_scientific()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
+		# Array
+		"array_create":
+			line = "%svar _arr_%d = []" % [indent, nd["id"]]
+		"array_append":
+			line = "%svar _aapp_%d = %s + [%s]" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"array_remove":
+			line = "%svar _arem_%d = %s.duplicate(); _arem_%d.remove_at(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), nd["id"], props.get("index", "0")]
+		"array_size":
+			line = "%svar _asz_%d = %s.size()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"array_has":
+			line = "%svar _ahas_%d = %s.has(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"array_find":
+			line = "%svar _afin_%d = %s.find(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"array_sort":
+			line = "%svar _asrt_%d = %s.duplicate(); _asrt_%d.sort()" % [indent, nd["id"], _resolve_input(nd, 0, data), nd["id"]]
+		"array_clear":
+			line = "%svar _aclr_%d = []" % [indent, nd["id"]]
+		"array_pop_back":
+			line = "%svar _apb_%d = %s.duplicate(); _apb_%d.pop_back()" % [indent, nd["id"], _resolve_input(nd, 0, data), nd["id"]]
+		"array_pop_front":
+			line = "%svar _apf_%d = %s.duplicate(); _apf_%d.pop_front()" % [indent, nd["id"], _resolve_input(nd, 0, data), nd["id"]]
+		"array_push_back":
+			line = "%svar _apbk_%d = %s + [%s]" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"array_front":
+			line = "%svar _afr_%d = %s.front()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"array_back":
+			line = "%svar _abk_%d = %s.back()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"array_shuffle":
+			line = "%svar _ashf_%d = %s.duplicate(); _ashf_%d.shuffle()" % [indent, nd["id"], _resolve_input(nd, 0, data), nd["id"]]
+		"array_slice":
+			line = "%svar _asl_%d = %s.slice(%s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("begin", "0"), props.get("end", "-1")]
+		"array_duplicate":
+			line = "%svar _adup_%d = %s.duplicate()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
+		# Dictionary
+		"dict_create":
+			line = "%svar _dict_%d = {}" % [indent, nd["id"]]
+		"dict_set":
+			line = '%svar _dset_%d = %s.duplicate(); _dset_%d["%s"] = %s' % [indent, nd["id"], _resolve_input(nd, 0, data), nd["id"], props.get("key", ""), _resolve_input(nd, 1, data)]
+		"dict_get":
+			line = '%svar _dget_%d = %s["%s"]' % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("key", "")]
+		"dict_has":
+			line = "%svar _dhas_%d = %s.has(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"dict_keys":
+			line = "%svar _dk_%d = %s.keys()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"dict_values":
+			line = "%svar _dv_%d = %s.values()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"dict_erase":
+			line = "%svar _der_%d = %s.duplicate(); _der_%d.erase(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), nd["id"], _resolve_input(nd, 1, data)]
+		"dict_size":
+			line = "%svar _dsz_%d = %s.size()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"dict_clear":
+			line = "%svar _dcl_%d = {}" % [indent, nd["id"]]
+		"dict_merge":
+			line = "%svar _dmrg_%d = %s.duplicate(); _dmrg_%d.merge(%s)" % [indent, nd["id"], _resolve_input(nd, 0, data), nd["id"], _resolve_input(nd, 1, data)]
+
+		# Variables
+		"set_var":
+			line = "%s%s = %s" % [indent, props.get("name", "my_var"), _resolve_input(nd, 0, data)]
+		"get_var":
+			pass
+		"increment_var":
+			line = "%s%s += %s" % [indent, props.get("name", "my_var"), props.get("amount", "1")]
+
+		# Flow Control
+		"sequence":
+			_trace_exec(nd["id"], 0, data, lines, indent, visited)
+			_trace_exec(nd["id"], 1, data, lines, indent, visited)
+			_trace_exec(nd["id"], 2, data, lines, indent, visited)
+			return
+		"delay":
+			line = "%sawait get_tree().create_timer(%s).timeout" % [indent, props.get("seconds", "1.0")]
+		"for_loop":
+			line = "%sfor i in range(%s):" % [indent, props.get("count", "10")]
+			lines.append(line)
+			_trace_exec(nd["id"], 0, data, lines, indent + "    ", visited)
+			_trace_exec(nd["id"], 1, data, lines, indent, visited)
+			return
+		"while_loop":
+			line = "%swhile %s:" % [indent, _resolve_input(nd, 0, data)]
+			lines.append(line)
+			_trace_exec(nd["id"], 0, data, lines, indent + "    ", visited)
+			_trace_exec(nd["id"], 1, data, lines, indent, visited)
+			return
+		"do_once":
+			line = "%svar _done_%d = false" % [indent, nd["id"]]
+			lines.append(line)
+			line = "%sif not _done_%d:" % [indent, nd["id"]]
+			lines.append(line)
+			line = "%s    _done_%d = true" % [indent, nd["id"]]
+			lines.append(line)
+			_trace_exec(nd["id"], 0, data, lines, indent + "    ", visited)
+			return
+		"switch":
+			line = "%smatch %s:" % [indent, _resolve_input(nd, 0, data)]
+			lines.append(line)
+			for i in range(int(props.get("cases", "3"))):
+				lines.append("%s    %d:" % [indent, i])
+				_trace_exec(nd["id"], i, data, lines, indent + "        ", visited)
+			lines.append("%s    _:" % indent)
+			_trace_exec(nd["id"], 3, data, lines, indent + "        ", visited)
+			return
 		"return":
-			line = "%sreturn %s" % [indent, _resolve_input(nd, 1, data)]
+			line = "%sreturn %s" % [indent, _resolve_input(nd, 0, data)]
+		"print", "print_value":
+			line = "%sprint(%s)" % [indent, _resolve_input(nd, 0, data)]
+		"break_loop":
+			line = "%sbreak" % indent
+		"continue_loop":
+			line = "%scontinue" % indent
+
+		# Signals
+		"emit_signal":
+			line = '%semit_signal(&"%s")' % [indent, props.get("signal_name", "my_signal")]
+		"connect_signal":
+			line = "%s# connect_signal: connect signal to callback manually" % indent
+		"await_signal":
+			line = "%sawait %s.get_node(\".\").%s" % [indent, _resolve_input(nd, 0, data), props.get("signal_name", "my_signal")]
+
+		# Audio
+		"play_audio":
+			line = "%s%s.play()" % [indent, _resolve_input(nd, 0, data)]
+		"stop_audio":
+			line = "%s%s.stop()" % [indent, _resolve_input(nd, 0, data)]
+		"set_audio_volume":
+			line = "%sAudioServer.set_bus_volume_db(AudioServer.get_bus_index(\"%s\"), %s)" % [indent, props.get("bus", "Master"), _resolve_input(nd, 0, data)]
+		"get_audio_volume":
+			line = "%svar _vol_%d = AudioServer.get_bus_volume_db(AudioServer.get_bus_index(\"%s\"))" % [indent, nd["id"], props.get("bus", "Master")]
+		"is_audio_playing":
+			line = "%svar _aplay_%d = %s.playing" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
+		# Timer
+		"timer_start":
+			line = "%s%s.start(%s)" % [indent, _resolve_input(nd, 0, data), props.get("wait_time", "1.0")]
+		"timer_stop":
+			line = "%s%s.stop()" % [indent, _resolve_input(nd, 0, data)]
+		"timer_get_time_left":
+			line = "%svar _tleft_%d = %s.time_left" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"timer_set_wait_time":
+			line = "%s%s.wait_time = %s" % [indent, _resolve_input(nd, 0, data), props.get("wait_time", "1.0")]
+
+		# Animation
+		"animation_play":
+			line = '%s%s.play("%s", %s, %s)' % [indent, _resolve_input(nd, 0, data), props.get("name", ""), props.get("speed", "1.0"), props.get("reverse", "false")]
+		"animation_stop":
+			line = "%s%s.stop()" % [indent, _resolve_input(nd, 0, data)]
+		"animation_seek":
+			line = "%s%s.seek(%s)" % [indent, _resolve_input(nd, 0, data), props.get("position", "0.0")]
+		"animation_is_playing":
+			line = "%svar _animp_%d = %s.is_playing()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"animation_get_current":
+			line = '%svar _animc_%d = %s.current_animation' % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
+		# Scene Management
+		"load_scene":
+			line = '%svar _lscn_%d = load("%s")' % [indent, nd["id"], props.get("path", "")]
+		"instantiate_scene_node":
+			line = "%svar _iscn_%d = %s.instantiate()" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"change_scene":
+			line = '%sget_tree().change_scene_to_file("%s")' % [indent, props.get("path", "")]
+		"reload_scene":
+			line = '%sget_tree().reload_current_scene()' % indent
+
+		# Utility
+		"push_error":
+			line = "%spush_error(%s)" % [indent, _resolve_input(nd, 0, data)]
+		"push_warning":
+			line = "%spush_warning(%s)" % [indent, _resolve_input(nd, 0, data)]
+		"set_meta":
+			line = '%s%s.set_meta("%s", %s)' % [indent, _resolve_input(nd, 0, data), props.get("name", ""), _resolve_input(nd, 1, data)]
+		"get_meta":
+			line = '%svar _meta_%d = %s.get_meta("%s")' % [indent, nd["id"], _resolve_input(nd, 0, data), props.get("name", "")]
+
+		# Camera
+		"camera_make_current":
+			line = "%s%s.make_current()" % [indent, _resolve_input(nd, 0, data)]
+		"set_camera_fov":
+			line = "%s%s.fov = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_camera_fov":
+			line = "%svar _fov_%d = %s.fov" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"set_camera_background":
+			line = "%s# set_camera_background: set Environment background_mode_color and background_color" % indent
+		"camera_get_position":
+			line = "%svar _campos_%d = %s.global_position" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
 		_:
 			line = "%s# TODO: %s" % [indent, t]
 
@@ -152,6 +563,7 @@ static func _generate_node_code(nd: Dictionary, data: NodeifyGraphData, lines: P
 		lines.append(line)
 
 	_trace_exec(nd["id"], 0, data, lines, indent, visited)
+
 
 static func _resolve_input(nd: Dictionary, port: int, data: NodeifyGraphData) -> String:
 	var def = NodeifyRegistry.NODE_DEFS.get(nd["type"], {})
@@ -166,7 +578,7 @@ static func _resolve_input(nd: Dictionary, port: int, data: NodeifyGraphData) ->
 			return _get_output_expr(source, conn["from_port"], data)
 
 	var props = nd.get("props", {})
-	var prop_keys = ["value", "position", "target", "offset", "impulse", "object", "stream"]
+	var prop_keys = ["value", "position", "target", "offset", "impulse", "object", "stream", "path", "name"]
 	for pk in prop_keys:
 		if props.has(pk):
 			return str(props[pk])
@@ -178,11 +590,13 @@ static func _get_output_expr(nd: Dictionary, port: int, data: NodeifyGraphData) 
 	var props = nd.get("props", {})
 	match t:
 		"number":
-			return str(props.get("value", 0))
-		"vector3":
-			return "Vector3(%s, %s, %s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
+			return str(props.get("value", "0.0"))
+		"string_value":
+			return "'%s'" % props.get("value", "")
 		"vector2":
 			return "Vector2(%s, %s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"vector3":
+			return "Vector3(%s, %s, %s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
 		"math_op":
 			return "(%s %s %s)" % [_resolve_input(nd, 0, data), props.get("operator", "+"), _resolve_input(nd, 1, data)]
 		"math_func":
@@ -198,35 +612,101 @@ static func _get_output_expr(nd: Dictionary, port: int, data: NodeifyGraphData) 
 		"is_key_pressed":
 			return "Input.is_key_pressed(%s)" % props.get("key", "KEY_SPACE")
 		"is_action_pressed":
-			return "Input.is_action_pressed(\"%s\")" % props.get("action", "ui_accept")
+			return 'Input.is_action_pressed("%s")' % props.get("action", "ui_accept")
 		"is_action_just_pressed":
-			return "Input.is_action_just_pressed(\"%s\")" % props.get("action", "ui_accept")
-		"get_axis":
-			return "Input.get_axis(\"%s\", \"%s\")" % [props.get("negative", "ui_left"), props.get("positive", "ui_right")]
+			return 'Input.is_action_just_pressed("%s")' % props.get("action", "ui_accept")
+		"is_action_just_released":
+			return 'Input.is_action_just_released("%s")' % props.get("action", "ui_accept")
+		"get_input_axis":
+			return 'Input.get_axis("%s", "%s")' % [props.get("negative", ""), props.get("positive", "")]
+		"get_input_vector":
+			return 'Input.get_vector("%s", "%s", "%s", "%s")' % [props.get("neg_x", ""), props.get("pos_x", ""), props.get("neg_y", ""), props.get("pos_y", "")]
 		"lerp":
 			return "lerp(%s, %s, %s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
+		"clamp":
+			return "clamp(%s, %s, %s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data), _resolve_input(nd, 2, data)]
 		"random_range":
 			return "randf_range(%s, %s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"random_int":
+			return "randi_range(%s, %s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"deg_to_rad":
+			return "deg_to_rad(%s)" % _resolve_input(nd, 0, data)
+		"rad_to_deg":
+			return "rad_to_deg(%s)" % _resolve_input(nd, 0, data)
+		"abs_val":
+			return "abs(%s)" % _resolve_input(nd, 0, data)
+		"ceil_val":
+			return "ceil(%s)" % _resolve_input(nd, 0, data)
+		"floor_val":
+			return "floor(%s)" % _resolve_input(nd, 0, data)
+		"sqrt_val":
+			return "sqrt(%s)" % _resolve_input(nd, 0, data)
+		"pow_val":
+			return "pow(%s, %s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_length":
+			return "%s.length()" % _resolve_input(nd, 0, data)
+		"string_concat":
+			return "str(%s) + str(%s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_to_upper":
+			return "%s.to_upper()" % _resolve_input(nd, 0, data)
+		"string_to_lower":
+			return "%s.to_lower()" % _resolve_input(nd, 0, data)
+		"string_to_int":
+			return "%s.to_int()" % _resolve_input(nd, 0, data)
+		"string_to_float":
+			return "%s.to_float()" % _resolve_input(nd, 0, data)
+		"string_contains":
+			return "%s.contains(%s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_find":
+			return "%s.find(%s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_begins_with":
+			return "%s.begins_with(%s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"string_ends_with":
+			return "%s.ends_with(%s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"array_size":
+			return "%s.size()" % _resolve_input(nd, 0, data)
+		"array_has":
+			return "%s.has(%s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"array_find":
+			return "%s.find(%s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"array_front":
+			return "%s.front()" % _resolve_input(nd, 0, data)
+		"array_back":
+			return "%s.back()" % _resolve_input(nd, 0, data)
+		"dict_has":
+			return "%s.has(%s)" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"dict_keys":
+			return "%s.keys()" % _resolve_input(nd, 0, data)
+		"dict_values":
+			return "%s.values()" % _resolve_input(nd, 0, data)
+		"dict_size":
+			return "%s.size()" % _resolve_input(nd, 0, data)
 		"get_var":
 			return props.get("name", "my_var")
-		"get_property":
-			return "%s.%s" % [_resolve_input(nd, 0, data), props.get("property", "position")]
-		"get_node_3d":
-			return "get_node(\"%s\")" % props.get("path", "")
-		"get_node_2d":
-			return "get_node(\"%s\")" % props.get("path", "")
-		"instantiate_scene":
-			return "load(\"%s\").instantiate()" % props.get("path", "")
-		"instantiate_scene_2d":
-			return "load(\"%s\").instantiate()" % props.get("path", "")
-		"type_cast":
-			return "%s as %s" % [_resolve_input(nd, 0, data), props.get("type", "Node3D")]
+		"get_meta":
+			return '%s.get_meta("%s")' % [_resolve_input(nd, 0, data), props.get("name", "")]
 		"is_instance_valid":
 			return "is_instance_valid(%s)" % _resolve_input(nd, 0, data)
-		"null_check":
+		"is_null":
 			return "%s == null" % _resolve_input(nd, 0, data)
-		"call_method":
-			return "%s.%s()" % [_resolve_input(nd, 1, data), props.get("method", "")]
+		"is_equal":
+			return "%s == %s" % [_resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"type_cast":
+			return "%s as %s" % [_resolve_input(nd, 0, data), props.get("type", "Node")]
+		"is_visible_3d":
+			return "%s.visible" % _resolve_input(nd, 0, data)
+		"is_on_floor_3d":
+			return "%s.is_on_floor()" % _resolve_input(nd, 0, data)
+		"is_on_wall_3d":
+			return "%s.is_on_wall()" % _resolve_input(nd, 0, data)
+		"is_on_ceiling_3d":
+			return "%s.is_on_ceiling()" % _resolve_input(nd, 0, data)
+		"animation_is_playing":
+			return "%s.is_playing()" % _resolve_input(nd, 0, data)
+		"is_audio_playing":
+			return "%s.playing" % _resolve_input(nd, 0, data)
+		"get_camera_fov":
+			return "%s.fov" % _resolve_input(nd, 0, data)
 		_:
 			if port == 0:
 				return "_%s_result" % t
