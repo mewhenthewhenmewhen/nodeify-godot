@@ -1,30 +1,30 @@
 class_name NodeifyRegistry extends RefCounted
 
 const CATEGORIES := {
-	"events": {"label": "Events", "color": Color(0.85, 0.2, 0.2)},
-	"node_ops": {"label": "Node Operations", "color": Color(0.2, 0.4, 0.85)},
-	"transform_3d": {"label": "3D Transform", "color": Color(0.6, 0.3, 0.8)},
-	"transform_2d": {"label": "2D Transform", "color": Color(0.2, 0.75, 0.3)},
-	"physics": {"label": "Physics", "color": Color(0.9, 0.6, 0.1)},
-	"input": {"label": "Input", "color": Color(0.1, 0.8, 0.8)},
-	"logic": {"label": "Logic", "color": Color(0.1, 0.65, 0.65)},
-	"math": {"label": "Math", "color": Color(0.85, 0.8, 0.2)},
-	"string_ops": {"label": "String", "color": Color(0.65, 0.4, 0.65)},
-	"array_ops": {"label": "Array", "color": Color(0.85, 0.4, 0.6)},
-	"dict_ops": {"label": "Dictionary", "color": Color(0.3, 0.7, 0.3)},
-	"flow": {"label": "Flow Control", "color": Color(0.9, 0.4, 0.15)},
-	"variables": {"label": "Variables", "color": Color(0.15, 0.6, 0.6)},
-	"type_conv": {"label": "Type Conversion", "color": Color(0.6, 0.4, 0.2)},
-	"signals": {"label": "Signals", "color": Color(0.8, 0.3, 0.45)},
-	"audio": {"label": "Audio", "color": Color(0.55, 0.3, 0.75)},
-	"timer": {"label": "Timer", "color": Color(0.4, 0.7, 0.9)},
-	"animation": {"label": "Animation", "color": Color(0.85, 0.55, 0.15)},
-	"scene": {"label": "Scene Management", "color": Color(0.35, 0.3, 0.8)},
-	"utility": {"label": "Utility", "color": Color(0.55, 0.55, 0.55)},
-	"camera": {"label": "Camera", "color": Color(0.4, 0.55, 0.7)},
+	"events": {"label": "Events", "color": [0.85, 0.2, 0.2]},
+	"node_ops": {"label": "Node Operations", "color": [0.2, 0.4, 0.85]},
+	"transform_3d": {"label": "3D Transform", "color": [0.6, 0.3, 0.8]},
+	"transform_2d": {"label": "2D Transform", "color": [0.2, 0.75, 0.3]},
+	"physics": {"label": "Physics", "color": [0.9, 0.6, 0.1]},
+	"input": {"label": "Input", "color": [0.1, 0.8, 0.8]},
+	"logic": {"label": "Logic", "color": [0.1, 0.65, 0.65]},
+	"math": {"label": "Math", "color": [0.85, 0.8, 0.2]},
+	"string_ops": {"label": "String", "color": [0.65, 0.4, 0.65]},
+	"array_ops": {"label": "Array", "color": [0.85, 0.4, 0.6]},
+	"dict_ops": {"label": "Dictionary", "color": [0.3, 0.7, 0.3]},
+	"flow": {"label": "Flow Control", "color": [0.9, 0.4, 0.15]},
+	"variables": {"label": "Variables", "color": [0.15, 0.6, 0.6]},
+	"type_conv": {"label": "Type Conversion", "color": [0.6, 0.4, 0.2]},
+	"signals": {"label": "Signals", "color": [0.8, 0.3, 0.45]},
+	"audio": {"label": "Audio", "color": [0.55, 0.3, 0.75]},
+	"timer": {"label": "Timer", "color": [0.4, 0.7, 0.9]},
+	"animation": {"label": "Animation", "color": [0.85, 0.55, 0.15]},
+	"scene": {"label": "Scene Management", "color": [0.35, 0.3, 0.8]},
+	"utility": {"label": "Utility", "color": [0.55, 0.55, 0.55]},
+	"camera": {"label": "Camera", "color": [0.4, 0.55, 0.7]},
+	"window": {"label": "Window", "color": [0.3, 0.5, 0.8]},
+	"display": {"label": "Display (Scratch)", "color": [0.9, 0.7, 0.2]},
 }
-	"window": {"label": "Window", "color": Color(0.3, 0.5, 0.8)},
-	"display": {"label": "Display (Scratch)", "color": Color(0.9, 0.7, 0.2)},
 
 const NODE_DEFS := {
 	# ── Events ──
@@ -3088,5 +3088,6 @@ static func get_options_for_prop(key: String, node_type: String) -> Array:
 
 static func get_category_color(category: String) -> Color:
 	if CATEGORIES.has(category):
-		return CATEGORIES[category]["color"]
+		var c = CATEGORIES[category]["color"]
+		return Color(c[0], c[1], c[2])
 	return Color.WHITE
