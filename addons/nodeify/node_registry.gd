@@ -23,6 +23,8 @@ const CATEGORIES := {
 	"utility": {"label": "Utility", "color": Color(0.55, 0.55, 0.55)},
 	"camera": {"label": "Camera", "color": Color(0.4, 0.55, 0.7)},
 }
+	"window": {"label": "Window", "color": Color(0.3, 0.5, 0.8)},
+	"display": {"label": "Display (Scratch)", "color": Color(0.9, 0.7, 0.2)},
 
 const NODE_DEFS := {
 	# ── Events ──
@@ -2754,6 +2756,283 @@ const NODE_DEFS := {
 }
 
 # ── Options for property dropdowns ──
+	# ── Window ──
+	"get_window_position": {
+		"category": "window",
+		"label": "Get Window Position",
+		"outputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "position", "type": "data"},
+		],
+		"inputs": [{"name": "exec", "type": "exec"}],
+		"desc": "Returns the window position on screen.",
+	},
+	"set_window_position": {
+		"category": "window",
+		"label": "Set Window Position",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "position", "type": "data"},
+		],
+		"desc": "Moves the window to the given screen position.",
+	},
+	"move_window_by": {
+		"category": "window",
+		"label": "Move Window By",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "offset", "type": "data"},
+		],
+		"desc": "Moves the window by a pixel offset.",
+	},
+	"get_window_size": {
+		"category": "window",
+		"label": "Get Window Size",
+		"outputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "size", "type": "data"},
+		],
+		"inputs": [{"name": "exec", "type": "exec"}],
+		"desc": "Returns the window size in pixels.",
+	},
+	"set_window_size": {
+		"category": "window",
+		"label": "Set Window Size",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "size", "type": "data"},
+		],
+		"desc": "Resizes the window.",
+	},
+	"center_window": {
+		"category": "window",
+		"label": "Center Window",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [{"name": "exec", "type": "exec"}],
+		"desc": "Centers the window on the screen.",
+	},
+	"set_window_title": {
+		"category": "window",
+		"label": "Set Window Title",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "title", "type": "data"},
+		],
+		"desc": "Sets the window title text.",
+	},
+	"set_window_fullscreen": {
+		"category": "window",
+		"label": "Set Fullscreen",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "enabled", "type": "data"},
+		],
+		"desc": "Toggles fullscreen mode.",
+	},
+	"set_window_always_on_top": {
+		"category": "window",
+		"label": "Always On Top",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "enabled", "type": "data"},
+		],
+		"desc": "Sets whether the window stays on top.",
+	},
+	"set_window_resizable": {
+		"category": "window",
+		"label": "Set Resizable",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "enabled", "type": "data"},
+		],
+		"desc": "Toggles window resizability.",
+	},
+	# ── Display (Scratch-like) ──
+	"show_node": {
+		"category": "display",
+		"label": "Show",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+		],
+		"desc": "Makes a node visible.",
+	},
+	"hide_node": {
+		"category": "display",
+		"label": "Hide",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+		],
+		"desc": "Hides a node.",
+	},
+	"set_transparency": {
+		"category": "display",
+		"label": "Set Transparency",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "alpha", "type": "data"},
+		],
+		"desc": "Sets the alpha (transparency) of a node.",
+	},
+	"set_color": {
+		"category": "display",
+		"label": "Set Color",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "color", "type": "data"},
+		],
+		"desc": "Sets the modulate color.",
+	},
+	"set_modulate": {
+		"category": "display",
+		"label": "Set Modulate",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "color", "type": "data"},
+		],
+		"desc": "Sets the self_modulate color.",
+	},
+	"set_z_index": {
+		"category": "display",
+		"label": "Set Z Index",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "z_index", "type": "data"},
+		],
+		"desc": "Sets the rendering order (z_index).",
+	},
+	"set_flip_h": {
+		"category": "display",
+		"label": "Set Flip H",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "flipped", "type": "data"},
+		],
+		"desc": "Flips the sprite horizontally.",
+	},
+	"set_flip_v": {
+		"category": "display",
+		"label": "Set Flip V",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "flipped", "type": "data"},
+		],
+		"desc": "Flips the sprite vertically.",
+	},
+	"go_to_x_y": {
+		"category": "display",
+		"label": "Go To X Y",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "position", "type": "data"},
+		],
+		"desc": "Instantly teleports to the given position.",
+	},
+	"glide_to": {
+		"category": "display",
+		"label": "Glide To",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "position", "type": "data"},
+		],
+		"props": {"duration": "1.0"},
+		"desc": "Smoothly moves to a position over duration seconds.",
+	},
+	"set_size": {
+		"category": "display",
+		"label": "Set Size",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "size", "type": "data"},
+		],
+		"desc": "Sets the size of a Control node.",
+	},
+	"change_size": {
+		"category": "display",
+		"label": "Change Size By",
+		"outputs": [{"name": "exec", "type": "exec"}],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+			{"name": "delta", "type": "data"},
+		],
+		"desc": "Adds to the current Control size.",
+	},
+	"get_color": {
+		"category": "display",
+		"label": "Get Color",
+		"outputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "color", "type": "data"},
+		],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+		],
+		"desc": "Returns the modulate color.",
+	},
+	"is_visible_node": {
+		"category": "display",
+		"label": "Is Visible",
+		"outputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "result", "type": "data"},
+		],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+		],
+		"desc": "Returns true if the node is visible.",
+	},
+	"get_size": {
+		"category": "display",
+		"label": "Get Size",
+		"outputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "size", "type": "data"},
+		],
+		"inputs": [
+			{"name": "exec", "type": "exec"},
+			{"name": "target", "type": "data"},
+		],
+		"desc": "Returns the Control node size.",
+	},
+const COLOR_OPTIONS := [
+	"WHITE", "BLACK", "RED", "GREEN", "BLUE", "YELLOW", "CYAN", "MAGENTA",
+	"Color(1, 1, 1)", "Color(0, 0, 0)", "Color(1, 0, 0)", "Color(0, 1, 0)",
+	"Color(0, 0, 1)", "Color(1, 1, 0)", "Color(0, 1, 1)", "Color(1, 0, 1)",
+]
+
+const WINDOW_MODE_OPTIONS := ["true", "false"]
+
 const OPERATOR_OPTIONS := {
 	"compare": ["==", "!=", ">", "<", ">=", "<="],
 	"math_op": ["+", "-", "*", "/", "%"],
@@ -2801,6 +3080,10 @@ static func get_options_for_prop(key: String, node_type: String) -> Array:
 		return KEY_OPTIONS
 	if key == "type":
 		return TYPE_OPTIONS
+	if key == "color":
+		return COLOR_OPTIONS
+	if key == "enabled":
+		return WINDOW_MODE_OPTIONS
 	return []
 
 static func get_category_color(category: String) -> Color:

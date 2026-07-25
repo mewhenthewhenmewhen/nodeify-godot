@@ -556,6 +556,62 @@ static func _generate_node_code(nd: Dictionary, data: NodeifyGraphData, lines: P
 		"camera_get_position":
 			line = "%svar _campos_%d = %s.global_position" % [indent, nd["id"], _resolve_input(nd, 0, data)]
 
+		# Window
+		"get_window_position":
+			line = "%svar _wpos_%d = DisplayServer.window_get_position()" % [indent, nd["id"]]
+		"set_window_position":
+			line = "%sDisplayServer.window_set_position(%s)" % [indent, _resolve_input(nd, 0, data)]
+		"move_window_by":
+			line = "%sDisplayServer.window_set_position(DisplayServer.window_get_position() + %s)" % [indent, _resolve_input(nd, 0, data)]
+		"get_window_size":
+			line = "%svar _wsz_%d = DisplayServer.window_get_size()" % [indent, nd["id"]]
+		"set_window_size":
+			line = "%sDisplayServer.window_set_size(%s)" % [indent, _resolve_input(nd, 0, data)]
+		"center_window":
+			line = "%sDisplayServer.window_set_position(DisplayServer.screen_get_size() / 2 - DisplayServer.window_get_size() / 2)" % indent
+		"set_window_title":
+			line = "%sDisplayServer.window_set_title(%s)" % [indent, _resolve_input(nd, 0, data)]
+		"set_window_fullscreen":
+			line = "%sDisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if %s else DisplayServer.WINDOW_MODE_WINDOWED)" % [indent, _resolve_input(nd, 0, data)]
+		"set_window_always_on_top":
+			line = "%sDisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_ALWAYS_ON_TOP, %s)" % [indent, _resolve_input(nd, 0, data)]
+		"set_window_resizable":
+			line = "%sDisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, not %s)" % [indent, _resolve_input(nd, 0, data)]
+
+		# Display (Scratch-like)
+		"show_node":
+			line = "%s%s.show()" % [indent, _resolve_input(nd, 0, data)]
+		"hide_node":
+			line = "%s%s.hide()" % [indent, _resolve_input(nd, 0, data)]
+		"set_transparency":
+			line = "%s%s.modulate.a = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"set_color":
+			line = "%s%s.modulate = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"set_modulate":
+			line = "%s%s.self_modulate = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"set_z_index":
+			line = "%s%s.z_index = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"set_flip_h":
+			line = "%s%s.flip_h = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"set_flip_v":
+			line = "%s%s.flip_v = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"go_to_x_y":
+			line = "%s%s.global_position = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"glide_to":
+			line = "%svar _tween_%d = create_tween()" % [indent, nd["id"]]
+			lines.append(line)
+			line = "%s_tween_%d.tween_property(%s, \"global_position\", %s, %s)" % [indent, nd["id"], _resolve_input(nd, 0, data), _resolve_input(nd, 1, data), props.get("duration", "1.0")]
+		"set_size":
+			line = "%s%s.size = %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"change_size":
+			line = "%s%s.size += %s" % [indent, _resolve_input(nd, 0, data), _resolve_input(nd, 1, data)]
+		"get_color":
+			line = "%svar _clr_%d = %s.modulate" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"is_visible_node":
+			line = "%svar _vis_%d = %s.visible" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+		"get_size":
+			line = "%svar _gsz_%d = %s.size" % [indent, nd["id"], _resolve_input(nd, 0, data)]
+
 		_:
 			line = "%s# TODO: %s" % [indent, t]
 
@@ -707,6 +763,16 @@ static func _get_output_expr(nd: Dictionary, port: int, data: NodeifyGraphData) 
 			return "%s.playing" % _resolve_input(nd, 0, data)
 		"get_camera_fov":
 			return "%s.fov" % _resolve_input(nd, 0, data)
+		"get_window_position":
+			return "DisplayServer.window_get_position()"
+		"get_window_size":
+			return "DisplayServer.window_get_size()"
+		"get_color":
+			return "%s.modulate" % _resolve_input(nd, 0, data)
+		"is_visible_node":
+			return "%s.visible" % _resolve_input(nd, 0, data)
+		"get_size":
+			return "%s.size" % _resolve_input(nd, 0, data)
 		_:
 			if port == 0:
 				return "_%s_result" % t
